@@ -1,3 +1,13 @@
+// Helper functions
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function log(msg) {
+    console.log(`[IG Manager] ${msg}`);
+    chrome.runtime.sendMessage({ action: 'LOG', message: msg }).catch(() => { });
+}
+
 console.log('IG Manager: Content Script Loaded');
 
 // Check for resume state (Kept for fallback, but main logic is now direct)
@@ -303,7 +313,8 @@ function getProfileStats() {
     return { followers: getCount('/followers/'), following: getCount('/following/') };
 }
 
-async function startScan() {
+async function startScan(retryCount = 0) {
+    isScanning = true; // Force True explicitly at start
     log('Analyzing profile...');
     const stats = getProfileStats();
     if (stats.followers === 0 && stats.following === 0) {
@@ -326,11 +337,35 @@ async function startScan() {
         const followers = await scrapeList(followersLink, stats.followers);
         log(`Followers Scraped: ${followers.length}`);
 
+        // Auto-Retry Logic (Accuracy Check)
+        if (followers.length === 0 && stats.followers > 0 && isScanning) {
+            if (retryCount < 2) {
+                log(`Warning: Zero followers scraped. Retrying... (${retryCount + 1}/2)`);
+                await delay(2000);
+                startScan(retryCount + 1);
+                return;
+            } else {
+                log('Error: Failed to scrape followers after retries.');
+            }
+        }
+
         await delay(2000);
+
+        if (!isScanning) return; // Check stop before next step
 
         log(`Scraping Following...`);
         const following = await scrapeList(followingLink, stats.following);
         log(`Following Scraped: ${following.length}`);
+
+        // Auto-Retry Logic for Following
+        if (following.length === 0 && stats.following > 0 && isScanning) {
+            if (retryCount < 2) {
+                log(`Warning: Zero following scraped. Retrying... (${retryCount + 1}/2)`);
+                await delay(2000);
+                startScan(retryCount + 1);
+                return;
+            }
+        }
 
         log('Analyzing...');
         const followersSet = new Set(followers);
@@ -375,20 +410,15 @@ async function scrapeList(clickTarget, targetCount) {
 
     let previousHeight = 0;
     let retries = 0;
-    const MAX_RETRIES = 15;
+    const MAX_RETRIES = 20; // Increased retries since we are just waiting
     let allUsers = new Set();
     const MAX_SCROLL_LOOPS = Math.ceil(targetCount / 5) + 50;
     let loopCount = 0;
 
     while (retries < MAX_RETRIES && loopCount < MAX_SCROLL_LOOPS) {
-        if (!isScanning) {
-            log('Scan stopped by user.');
-            break;
-        }
-
         // Safety Check: Is modal still open?
         if (!document.body.contains(dialog)) {
-            log('Error: Modal closed unexpectedly. Aborting scan.');
+            log('Error: Modal closed unexpectedly. (Manual close?)');
             break;
         }
 
@@ -401,30 +431,27 @@ async function scrapeList(clickTarget, targetCount) {
             break;
         }
 
+        // Simple Scroll Logic (Reverted as per user request)
         scrollable.scrollTop = scrollable.scrollHeight;
 
-        await delay(1000 + Math.random() * 500);
+        await delay(1200 + Math.random() * 500); // Slightly longer base delay
 
         const currentHeight = scrollable.scrollHeight;
         if (currentHeight === previousHeight) {
             retries++;
-
-            // "Jiggle" Strategy to unstick infinite scroll
-            if (retries % 2 === 0) {
-                log(`Stuck? Performing recovery scroll... (${allUsers.size}/${targetCount})`);
-                scrollable.scrollTop = scrollable.scrollHeight - 300;
-                await delay(500);
-                scrollable.scrollTop = scrollable.scrollHeight;
-            }
-
             if (retries % 5 === 0) {
-                log(`Still stuck? Waiting longer... (${allUsers.size}/${targetCount})`);
-                await delay(2000);
+                log(`Waiting for items to load... (${allUsers.size}/${targetCount})`);
+                await delay(2000); // Extra wait
+
+                // Very gentle nudge only if really stuck
+                scrollable.scrollTop = scrollable.scrollHeight - 50;
+                await delay(200);
+                scrollable.scrollTop = scrollable.scrollHeight;
             }
         } else {
             previousHeight = currentHeight;
             retries = 0;
-            if (loopCount % 10 === 0) log(`Scrolled... ${allUsers.size} users.`);
+            if (loopCount % 5 === 0) log(`Scrolled... ${allUsers.size} users found.`);
         }
     }
 
