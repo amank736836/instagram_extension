@@ -85,19 +85,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Event Listeners
     btnScan.addEventListener('click', async () => {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab.url.includes('instagram.com')) {
-            log('Error: Please open Instagram first.');
-            return;
-        }
-
-        log('Starting Scan...');
-        chrome.tabs.sendMessage(tab.id, { action: 'START_SCAN' }, (response) => {
-            if (chrome.runtime.lastError) {
-                log('Error: Refresh page and try again.');
-            } else {
-                log('Scan command sent.');
-            }
+        log('Initializing Scan...');
+        
+        // Set state to pending
+        chrome.storage.local.set({ 
+            actionState: { type: 'SCAN_INIT' } 
+        }, () => {
+             log('Opening Instagram...');
+             chrome.tabs.create({ url: 'https://www.instagram.com/' });
+             // Window will close here usually
         });
     });
 

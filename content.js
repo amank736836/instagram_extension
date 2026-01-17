@@ -21,14 +21,102 @@ function log(msg) {
 }
 
 async function checkResumeState() {
-    // Only kept for batch resume if page accidentally reloads
     chrome.storage.local.get(['actionState'], (result) => {
         const state = result.actionState;
-        if (state && state.type === 'BATCH_UNFOLLOW' && state.step === 'SEARCHING') {
+        if (!state) return;
+
+        if (state.type === 'UNFOLLOW_SINGLE' && state.step === 'NAVIGATED') {
+            log(`Resuming unfollow for ${state.user}...`);
+            resumeUnfollow(state.user);
+        } else if (state.type === 'BATCH_UNFOLLOW' && state.step === 'NAVIGATED') {
+            log(`Resuming batch unfollow for ${state.user}...`);
+            resumeUnfollow(state.user, true); // true = isBatch
+        } else if (state.type === 'BATCH_UNFOLLOW' && state.step === 'SEARCHING') {
             log(`Resuming batch unfollow for ${state.user}...`);
             unfollowViaFollowingList(state.user, true);
+        } else if (state.type === 'SCAN_INIT') {
+            handleScanInit();
         }
     });
+}
+
+async function handleScanInit() {
+    log('Scan Initialization detected. Checking for profile...');
+
+    // Retry loop to wait for PROFILE STATS
+    let stats = { followers: 0, following: 0 };
+    let statsAttempts = 0;
+
+    while ((stats.followers === 0 && stats.following === 0) && statsAttempts < 10) {
+        statsAttempts++;
+        stats = getProfileStats();
+        if (stats.followers > 0 || stats.following > 0) break;
+
+        log(`Waiting for profile data... (${statsAttempts}/10)`);
+        await delay(1000);
+    }
+
+    if (stats.followers > 0 || stats.following > 0) {
+        log('On Profile Page. Starting Scan...');
+        // Clear init state
+        await chrome.storage.local.remove(['actionState']);
+        startScan();
+        return;
+    }
+
+    log('Not on profile (or stats failed to load). Navigating...');
+
+    // Retry loop to wait for page load (Sidebar might take a few seconds)
+    let profileLink = null;
+    let attempts = 0;
+
+    while (!profileLink && attempts < 10) {
+        attempts++;
+        const links = Array.from(document.querySelectorAll('a'));
+
+        profileLink = links.find(a => {
+            // Check 1: Exact text match (Sidebar usually has "Profile" hidden or visible)
+            if (a.innerText.includes('Profile')) return true;
+
+            // Check 2: Image alt text
+            const img = a.querySelector('img');
+            if (img && img.alt && img.alt.includes('profile picture')) return true;
+
+            return false;
+        });
+
+        if (!profileLink) {
+            log(`Waiting for navigation sidebar... (${attempts}/10)`);
+            await delay(1000);
+        }
+    }
+
+    if (profileLink) {
+        log('Found Profile link. Clicking...');
+        profileLink.click();
+
+        // SPA Handling: Wait for navigation and verify stats again
+        log('Waiting for profile to load...');
+        await delay(3000);
+
+        let retry = 0;
+        while (retry < 15) {
+            retry++;
+            const s = getProfileStats();
+            if (s.followers > 0 || s.following > 0) {
+                log('Profile loaded. Starting Scan...');
+                await chrome.storage.local.remove(['actionState']);
+                startScan();
+                return;
+            }
+            log(`Waiting for stats... (${retry}/15)`);
+            await delay(1000);
+        }
+        log('Timed out waiting for profile stats.');
+
+    } else {
+        log('Could not find Profile link after waiting. Please navigate manually.');
+    }
 }
 
 async function unfollowViaFollowingList(username, isBatch = false) {
