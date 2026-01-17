@@ -46,11 +46,19 @@ document.addEventListener('DOMContentLoaded', () => {
             unfollowBtn.onclick = async () => {
                 unfollowBtn.textContent = '...';
                 unfollowBtn.disabled = true;
-                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                if (tab && tab.url.includes('instagram.com')) {
-                    chrome.tabs.sendMessage(tab.id, { action: 'UNFOLLOW_USER', username: u });
+
+                // Robust Tab Discovery: Find ANY Instagram tab, not just the active one in the current window
+                // This fixes issues when using Detached Mode or if the user clicked away.
+                const tabs = await chrome.tabs.query({ url: "*://www.instagram.com/*" });
+
+                if (tabs && tabs.length > 0) {
+                    // Pick the active one if possible, otherwise the first one
+                    const targetTab = tabs.find(t => t.active) || tabs[0];
+
+                    log(`Sending Unfollow command for ${u} to tab ${targetTab.id}...`);
+                    chrome.tabs.sendMessage(targetTab.id, { action: 'UNFOLLOW_USER', username: u });
                 } else {
-                    log('Error: Instagram tab not active');
+                    log('Error: No Instagram tab found. Please open Instagram.');
                     unfollowBtn.textContent = 'Unfollow';
                     unfollowBtn.disabled = false;
                 }
@@ -78,9 +86,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Toggle List
+    // Old List Button listeners removed because we use Tabs now.
+
+    // Auto-switch to List tab on click of "Don't Follow Back" card
     document.getElementById('nonFollowersCard').addEventListener('click', () => {
-        userListDiv.classList.toggle('hidden');
+        const listTabBtn = document.getElementById('btn-tab-list');
+        if (listTabBtn) listTabBtn.click();
     });
 
     const btnDetach = document.getElementById('btn-detach');
@@ -118,13 +129,52 @@ document.addEventListener('DOMContentLoaded', () => {
         chrome.tabs.sendMessage(tab.id, { action: 'START_UNFOLLOW' });
     });
 
+    // Tab Logic
+    const tabs = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const badge = document.getElementById('nf-badge');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Deactivate all
+            tabs.forEach(t => t.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+
+            // Activate current
+            tab.classList.add('active');
+            const targetId = tab.getAttribute('data-tab');
+            document.getElementById(targetId).classList.add('active');
+        });
+    });
+
+    // Update stats and Badge
+    function updateStats(followers, following, nonFollowers) {
+        document.getElementById('followersCount').textContent = followers || '-';
+        document.getElementById('followingCount').textContent = following || '-';
+        document.getElementById('nonFollowersCount').textContent = nonFollowers || '-';
+
+        if (nonFollowers > 0) {
+            badge.textContent = nonFollowers;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+
+    // ... (Keep renderUserList logic) ...
+
     // Listen for messages from content script
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === 'LOG') {
             log(request.message);
         } else if (request.action === 'STATS_UPDATE') {
             updateStats(request.followers, request.following, request.nonFollowers);
-            if (request.nonFollowers > 0) btnUnfollow.disabled = false;
+
+            if (request.nonFollowers > 0) {
+                btnUnfollow.disabled = false;
+                badge.textContent = request.nonFollowers;
+                badge.classList.remove('hidden');
+            }
 
             // Re-fetch list to render
             chrome.storage.local.get(['nonFollowers'], (res) => {

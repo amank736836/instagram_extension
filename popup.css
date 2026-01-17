@@ -31,10 +31,16 @@ header {
     margin-bottom: 20px;
 }
 
-.header-controls {
+.title {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+    font-weight: 600;
+}
+
+.logo {
+    width: 24px;
+    height: 24px;
 }
 
 .icon-btn {
@@ -59,6 +65,7 @@ h1 {
     font-weight: 600;
     margin: 0;
     background: linear-gradient(to right, #fff, #aaa);
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
@@ -165,13 +172,107 @@ button:disabled {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.secondary-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
+/* Tabs */
+.tabs {
+    display: flex;
+    margin-bottom: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.logs-container h3 {
-    font-size: 12px;
+.tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
     color: var(--text-secondary);
+    padding: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+    color: var(--accent-color);
+    border-bottom: 2px solid var(--accent-color);
+}
+
+.tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.badge {
+    background: var(--danger-color);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    margin-left: 5px;
+}
+
+.badge.hidden {
+    display: none;
+}
+
+/* User List Tab Specifics */
+.user-list {
+    margin-top: 10px;
+    max-height: 450px;
+    /* More height for the tab view */
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 10px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.list-header h3 {
+    margin: 0;
+    font-size: 14px;
+}
+
+.subtext {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+/* Keep existing item styles */
+.user-item {
     margin: 0 0 8px 0;
 }
 

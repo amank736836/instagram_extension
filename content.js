@@ -208,8 +208,30 @@ async function unfollowViaFollowingList(username, isBatch = false) {
     const followingBtns = buttons.filter(b => b.innerText === 'Following');
 
     if (followingBtns.length === 0) {
-        log('User not found in Following list (or already unfollowed).');
-        if (isBatch) nextBatchItem(username);
+        log(`User ${username} not found in Following list (or already unfollowed). Skipping...`);
+
+        // REMOVE FROM LIST TO PREVENT INFINITE LOOP
+        chrome.storage.local.get(['nonFollowers'], (result) => {
+            if (result.nonFollowers) {
+                const newList = result.nonFollowers.filter(u => u !== username);
+                chrome.storage.local.set({ nonFollowers: newList });
+
+                // Update Badge/Stats
+                chrome.runtime.sendMessage({
+                    action: 'STATS_UPDATE',
+                    followers: 0, // We don't know the new count, but we can pass current or 0 to ignore
+                    following: 0,
+                    nonFollowers: newList.length
+                });
+            }
+
+            // Close dialog to reset state for next search
+            closeDialog(dialog);
+
+            if (isBatch) {
+                setTimeout(() => nextBatchItem(username), 2000);
+            }
+        });
         return;
     }
 
