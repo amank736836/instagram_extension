@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IG Manager</title>
+    <link rel="stylesheet" href="popup.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>IG Manager</h1>
+            <div class="status-badge" id="statusBadge">Ready</div>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-label">Followers</span>
+                <span class="stat-value" id="followersCount">-</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Following</span>
+                <span class="stat-value" id="followingCount">-</span>
+            </div>
+            <div class="stat-card highlight" id="nonFollowersCard" style="cursor: pointer;" title="Click to view list">
+                <span class="stat-label">Don't Follow Back</span>
+                <span class="stat-value" id="nonFollowersCount">-</span>
+            </div>
+        </div>
+
+        <div id="userList" class="user-list hidden">
+            <!-- List items injected here -->
+        </div>
+
+        <div class="actions">
+            <button id="btnScan" class="primary-btn">
+                <span class="icon">🔍</span> Scan Profile
+            </button>
+            <button id="btnUnfollow" class="danger-btn" disabled>
+                <span class="icon">⚡</span> Unfollow (Safe Mode)
+            </button>
+        </div>
+
+        <div class="logs-container">
+            <h3>Activity Log</h3>
+            <div id="logs" class="logs">
+                <div class="log-item">Extension loaded...</div>
+            </div>
+        </div>
+    </div>
+    <script src="popup.js"></script>
+</body>
+
+</html>
