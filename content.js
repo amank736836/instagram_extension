@@ -3,9 +3,15 @@ console.log('IG Manager: Content Script Loaded');
 // Check for resume state (Kept for fallback, but main logic is now direct)
 checkResumeState();
 
+let isScanning = false;
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'START_SCAN') {
+        isScanning = true;
         startScan();
+    } else if (request.action === 'STOP_SCAN') {
+        isScanning = false;
+        log('Stopping scan...');
     } else if (request.action === 'START_UNFOLLOW') {
         startBatchUnfollow();
     } else if (request.action === 'UNFOLLOW_USER') {
@@ -375,6 +381,17 @@ async function scrapeList(clickTarget, targetCount) {
     let loopCount = 0;
 
     while (retries < MAX_RETRIES && loopCount < MAX_SCROLL_LOOPS) {
+        if (!isScanning) {
+            log('Scan stopped by user.');
+            break;
+        }
+
+        // Safety Check: Is modal still open?
+        if (!document.body.contains(dialog)) {
+            log('Error: Modal closed unexpectedly. Aborting scan.');
+            break;
+        }
+
         loopCount++;
         const users = extractUsersFromDialog(dialog);
         users.forEach(u => allUsers.add(u));
@@ -391,8 +408,17 @@ async function scrapeList(clickTarget, targetCount) {
         const currentHeight = scrollable.scrollHeight;
         if (currentHeight === previousHeight) {
             retries++;
+
+            // "Jiggle" Strategy to unstick infinite scroll
+            if (retries % 2 === 0) {
+                log(`Stuck? Performing recovery scroll... (${allUsers.size}/${targetCount})`);
+                scrollable.scrollTop = scrollable.scrollHeight - 300;
+                await delay(500);
+                scrollable.scrollTop = scrollable.scrollHeight;
+            }
+
             if (retries % 5 === 0) {
-                log(`Stuck? Waiting longer... (${allUsers.size}/${targetCount})`);
+                log(`Still stuck? Waiting longer... (${allUsers.size}/${targetCount})`);
                 await delay(2000);
             }
         } else {

@@ -12,8 +12,19 @@
 <body>
     <div class="container">
         <header>
-            <h1>IG Manager</h1>
-            <div class="status-badge" id="statusBadge">Ready</div>
+            <div class="header-title">
+                <h1>IG Manager</h1>
+            </div>
+            <div class="header-controls">
+                <button id="btn-detach" class="icon-btn" title="Open in New Window (Keep Active)">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                </button>
+                <div class="status-badge" id="statusBadge">Ready</div>
+            </div>
         </header>
 
         <div class="stats-grid">
@@ -39,6 +50,10 @@
             <button id="btnScan" class="primary-btn">
                 <span class="icon">🔍</span> Scan Profile
             </button>
+            <div id="scanStatus" class="scan-status hidden">
+                <span class="spinner">⏳</span> Scanning...
+                <button id="btnStopScan" class="small-btn danger-btn">Stop</button>
+            </div>
             <button id="btnUnfollow" class="danger-btn" disabled>
                 <span class="icon">⚡</span> Unfollow (Safe Mode)
             </button>

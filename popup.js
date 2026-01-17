@@ -83,17 +83,32 @@ document.addEventListener('DOMContentLoaded', () => {
         userListDiv.classList.toggle('hidden');
     });
 
+    const btnDetach = document.getElementById('btn-detach');
+
+    // Detach Handler
+    if (btnDetach) {
+        btnDetach.addEventListener('click', () => {
+            chrome.windows.create({
+                url: chrome.runtime.getURL("popup.html"),
+                type: "popup",
+                width: 400,
+                height: 600
+            });
+            window.close(); // Close current popup
+        });
+    }
+
     // Event Listeners
     btnScan.addEventListener('click', async () => {
         log('Initializing Scan...');
-        
+
         // Set state to pending
-        chrome.storage.local.set({ 
-            actionState: { type: 'SCAN_INIT' } 
+        chrome.storage.local.set({
+            actionState: { type: 'SCAN_INIT' }
         }, () => {
-             log('Opening Instagram...');
-             chrome.tabs.create({ url: 'https://www.instagram.com/' });
-             // Window will close here usually
+            log('Opening Instagram...');
+            chrome.tabs.create({ url: 'https://www.instagram.com/' });
+            // Window will close here usually
         });
     });
 

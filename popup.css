@@ -12,7 +12,9 @@
 
 body {
     margin: 0;
-    width: 350px;
+    width: 100%;
+    min-width: 350px;
+    box-sizing: border-box;
     background-color: var(--bg-color);
     font-family: 'Inter', sans-serif;
     color: var(--text-primary);
@@ -27,6 +29,29 @@ header {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
 }
 
 h1 {
@@ -199,4 +224,33 @@ button:disabled {
 
 .user-item:last-child {
     border-bottom: none;
+}
+
+.scan-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    padding: 10px;
+    border-radius: var(--border-radius);
+    color: var(--accent-color);
+    font-size: 13px;
+    margin-top: -10px;
+    /* Connect visually to scan button */
+}
+
+.scan-status.hidden {
+    display: none;
+}
+
+.spinner {
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    100% {
+        transform: rotate(360deg);
+    }
 }
