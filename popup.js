@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const btnScan = document.getElementById('btnScan');
+    const btnWatchStories = document.getElementById('btnWatchStories');
     const btnUnfollow = document.getElementById('btnUnfollow');
     const logsDiv = document.getElementById('logs');
     const userListDiv = document.getElementById('userList');
@@ -120,6 +121,16 @@ document.addEventListener('DOMContentLoaded', () => {
             log('Opening Instagram...');
             chrome.tabs.create({ url: 'https://www.instagram.com/' });
             // Window will close here usually
+        });
+    });
+
+    btnWatchStories.addEventListener('click', async () => {
+        log('Initializing Story Viewer...');
+        chrome.storage.local.set({
+            actionState: { type: 'STORY_INIT' }
+        }, () => {
+            log('Opening Instagram Home...');
+            chrome.tabs.create({ url: 'https://www.instagram.com/' });
         });
     });
 

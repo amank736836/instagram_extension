@@ -52,6 +52,10 @@ async function checkResumeState() {
             unfollowViaFollowingList(state.user, true);
         } else if (state.type === 'SCAN_INIT') {
             handleScanInit();
+        } else if (state.type === 'STORY_INIT') {
+            log('Initializing Story Viewer...');
+            chrome.storage.local.remove(['actionState']);
+            startStoryViewer();
         }
     });
 }
@@ -541,27 +545,149 @@ async function startBatchUnfollow() {
     });
 }
 
-async function navigateToProfile() {
-    log('Searching for Profile link in sidebar...');
-    let attempts = 0;
-    while (attempts < 5) {
-        const links = Array.from(document.querySelectorAll('a'));
-        const profileLink = links.find(a => {
-            if (a.innerText.trim() === 'Profile') return true;
-            const img = a.querySelector('img');
-            if (img && img.alt && img.alt.toLowerCase().includes('profile picture')) return true;
-            return false;
-        });
+// --- STORY VIEWER LOGIC ---
 
-        if (profileLink) {
-            log('Found Profile link. Clicking...');
-            profileLink.click();
-            await delay(3000); // Wait for SPA nav
-            return true;
+async function startStoryViewer() {
+    log('Starting Auto Story Viewer...');
+
+    // 1. Ensure on Home Feed
+    if (window.location.pathname !== '/') {
+        log('Navigating to Home Feed...');
+        document.querySelector('a[href="/"]')?.click();
+        await delay(3000);
+    }
+
+    // 2. Find Story Tray
+    log('Looking for stories...');
+    const tray = await waitForElement('main ul li canvas, div[role="menu"] canvas', 5000); // Broad selector for story rings
+
+    if (!tray) {
+        log('Error: No stories found (or tray not loaded).');
+        return;
+    }
+
+    // 3. Click first story specifically
+    // We look for a canvas that represents a story ring. 
+    // Usually standard height is 66x66 or 87x87.
+    const storyCanvases = Array.from(document.querySelectorAll('canvas'));
+    const unreadStory = storyCanvases.find(c => {
+        // Simple heuristic: Unread usually has height > 50 and is in the top part of layout
+        const rect = c.getBoundingClientRect();
+        return rect.height > 50 && rect.top < 300;
+    });
+
+    if (unreadStory) {
+        log('Opening first story...');
+        unreadStory.click();
+        await delay(3000);
+        await watchStoryLoop();
+        log('Story Viewer session ended.');
+    } else {
+        log('No unread stories found.');
+    }
+}
+
+async function watchStoryLoop() {
+    let active = true;
+    let storiesWatched = 0;
+    const MAX_STORIES = 200; // Safety limit
+
+    log('Entering Watch Loop...');
+
+    while (active && storiesWatched < MAX_STORIES) {
+        // 1. Check if we are still in Story Mode (URL starts with /stories/)
+        if (!window.location.pathname.startsWith('/stories/')) {
+            log('Exited story mode. Stopping.');
+            active = false;
+            break;
         }
 
-        attempts++;
-        await delay(1000);
+        storiesWatched++;
+        const waitTime = 2000 + Math.random() * 2000; // 2-4 seconds base view time
+        // log(`Watching story ${storiesWatched}... (${Math.round(waitTime)}ms)`);
+
+        await delay(waitTime);
+
+        // 2. Click Next
+        const nextBtn = document.querySelector('svg[aria-label="Next"]');
+        if (nextBtn) {
+            const btn = nextBtn.closest('[role="button"]') || nextBtn.parentElement;
+            if (btn) {
+                btn.click();
+            } else {
+                log('Next button SVG found but container not clickable. Retrying...');
+            }
+        } else {
+            // Check if we are done?
+            // excessive "Previous" buttons or just no "Next" might mean end of list or just waiting
+            log('Next button not found. Waiting longer...');
+            await delay(3000);
+
+            // Retry find next
+            const retryNext = document.querySelector('svg[aria-label="Next"]');
+            if (retryNext) {
+                retryNext.closest('[role="button"]').click();
+            } else {
+                log('No Next button. Finishing...');
+                active = false;
+            }
+        }
     }
-    return false;
+}
+
+async function waitForElement(selector, timeout = 5000) {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+        const el = document.querySelector(selector);
+        if (el) return el;
+        await delay(500);
+    }
+    return null;
+}
+
+// Update Message Listener to handle STORY_INIT
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // ... existing handlers ...
+    if (request.action === 'START_SCAN') {
+        isScanning = true;
+        startScan();
+    } else if (request.action === 'STOP_SCAN') {
+        isScanning = false;
+        log('Stopping scan...');
+    } else if (request.action === 'START_UNFOLLOW') {
+        startBatchUnfollow();
+    } else if (request.action === 'UNFOLLOW_USER') {
+        unfollowViaFollowingList(request.username);
+    }
+    // NEW: Story Handler is triggered via popup CheckResumeState usually, but can be direct
+    else if (request.action === 'START_STORY_VIEWER') {
+        startStoryViewer();
+    }
+
+    return true;
+});
+
+// Update checkResumeState for STORY_INIT
+async function checkResumeState() {
+    chrome.storage.local.get(['actionState'], (result) => {
+        const state = result.actionState;
+        if (!state) return;
+
+        if (state.type === 'UNFOLLOW_SINGLE' && state.step === 'NAVIGATED') {
+            // ...
+            resumeUnfollow(state.user);
+        } else if (state.type === 'BATCH_UNFOLLOW' && state.step === 'NAVIGATED') {
+            // ...
+            resumeUnfollow(state.user, true);
+        } else if (state.type === 'BATCH_UNFOLLOW' && state.step === 'SEARCHING') {
+            // ...
+            unfollowViaFollowingList(state.user, true);
+        } else if (state.type === 'SCAN_INIT') {
+            handleScanInit();
+        } else if (state.type === 'STORY_INIT') {
+            // Clear state and start
+            chrome.storage.local.remove(['actionState']);
+            startStoryViewer();
+        }
+    });
 }
