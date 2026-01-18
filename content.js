@@ -553,96 +553,129 @@ async function startStoryViewer() {
     // 1. Ensure on Home Feed
     if (window.location.pathname !== '/') {
         log('Navigating to Home Feed...');
-        document.querySelector('a[href="/"]')?.click();
-        await delay(3000);
+        const homeBtn = document.querySelector('a[href="/"] svg[aria-label="Home"]');
+        if (homeBtn) {
+            homeBtn.closest('a').click();
+        } else {
+            window.location.href = 'https://www.instagram.com/';
+        }
+        await delay(5000);
     }
 
     // 2. Find Story Tray
     log('Looking for stories...');
-    const tray = await waitForElement('main ul li canvas, div[role="menu"] canvas', 5000); // Broad selector for story rings
+    // Home feed story tray is usually a 'ul' or 'div' with roll="menu" or similar presentation
+    // We look for the first canvas elements which are the story rings
+    await delay(2000);
 
-    if (!tray) {
-        log('Error: No stories found (or tray not loaded).');
+    // Select all canvases that are likely story rings (size check ~66px or ~87px)
+    // On home feed, they are in a horizontal row at the top
+    const canvases = Array.from(document.querySelectorAll('canvas'));
+    const storyCanvases = canvases.filter(c => {
+        const rect = c.getBoundingClientRect();
+        return rect.height > 55 && rect.top < 250;
+    });
+
+    if (storyCanvases.length === 0) {
+        log('Error: No stories found in tray.');
         return;
     }
 
-    // 3. Click first story specifically
-    // We look for a canvas that represents a story ring. 
-    // Usually standard height is 66x66 or 87x87.
-    const storyCanvases = Array.from(document.querySelectorAll('canvas'));
-    const unreadStory = storyCanvases.find(c => {
-        // Simple heuristic: Unread usually has height > 50 and is in the top part of layout
-        const rect = c.getBoundingClientRect();
-        return rect.height > 50 && rect.top < 300;
-    });
+    // Filter for unread? 
+    // Usually unread have a gradient ring. Read have a grey ring.
+    // We can't easily check color via JS without complex canvas analysis.
+    // BUT, usually the first one in the list IS unread if it's there.
 
-    if (unreadStory) {
+    // We explicitly click the *first* available story canvas to start the chain.
+    const firstStory = storyCanvases[0];
+
+    if (firstStory) {
         log('Opening first story...');
-        unreadStory.click();
+        firstStory.click();
+
         await delay(3000);
         await watchStoryLoop();
         log('Story Viewer session ended.');
-    } else {
-        log('No unread stories found.');
     }
 }
 
 async function watchStoryLoop() {
     let active = true;
     let storiesWatched = 0;
-    const MAX_STORIES = 200; // Safety limit
+    const MAX_STORIES = 300;
 
     log('Entering Watch Loop...');
 
     while (active && storiesWatched < MAX_STORIES) {
-        // 1. Check if we are still in Story Mode (URL starts with /stories/)
+        // 1. Check if we are still in Story Mode
         if (!window.location.pathname.startsWith('/stories/')) {
-            log('Exited story mode. Stopping.');
+            log('Exited story mode (URL change). Stopping.');
             active = false;
             break;
         }
 
         storiesWatched++;
-        const waitTime = 2000 + Math.random() * 2000; // 2-4 seconds base view time
-        // log(`Watching story ${storiesWatched}... (${Math.round(waitTime)}ms)`);
+        const viewTime = 2000 + Math.random() * 3000; // 2-5 seconds
 
-        await delay(waitTime);
+        // --- LIKE LOGIC ---
+        await delay(1000 + Math.random() * 1000); // Wait 1-2s before liking
 
-        // 2. Click Next
-        const nextBtn = document.querySelector('svg[aria-label="Next"]');
-        if (nextBtn) {
-            const btn = nextBtn.closest('[role="button"]') || nextBtn.parentElement;
-            if (btn) {
-                btn.click();
+        // Find Like Button
+        const likeSvg = document.querySelector('svg[aria-label="Like"]');
+        if (likeSvg) {
+            const likeBtn = likeSvg.closest('[role="button"]') || likeSvg.parentElement;
+            if (likeBtn) {
+                log('Liking story... ❤️');
+                likeBtn.click();
+                await delay(500);
+            }
+        }
+
+        // Wait remaining time
+        const remainingTime = Math.max(500, viewTime - 2000);
+        await delay(remainingTime);
+
+        // --- NEXT LOGIC ---
+        const nextSvg = document.querySelector('svg[aria-label="Next"]');
+        if (nextSvg) {
+            const nextBtn = nextSvg.closest('[role="button"]') || nextSvg.parentElement;
+            if (nextBtn) {
+                // log('Next story...');
+                nextBtn.click();
             } else {
-                log('Next button SVG found but container not clickable. Retrying...');
+                log('Next button found but not clickable. Using ArrowRight.');
+                simulateRightKey();
             }
         } else {
-            // Check if we are done?
-            // excessive "Previous" buttons or just no "Next" might mean end of list or just waiting
-            log('Next button not found. Waiting longer...');
-            await delay(3000);
+            // Fallback: Click right side of screen
+            log('Next button hidden. Clicking screen right side...');
+            simulateClickAtScreen('right');
 
-            // Retry find next
-            const retryNext = document.querySelector('svg[aria-label="Next"]');
-            if (retryNext) {
-                retryNext.closest('[role="button"]').click();
-            } else {
-                log('No Next button. Finishing...');
+            await delay(2000);
+            if (!document.querySelector('svg[aria-label="Next"]') && !window.location.pathname.startsWith('/stories/')) {
+                log('Story chain ended.');
                 active = false;
             }
         }
+
+        await delay(500); // Small pause between stories
     }
 }
 
-async function waitForElement(selector, timeout = 5000) {
-    const start = Date.now();
-    while (Date.now() - start < timeout) {
-        const el = document.querySelector(selector);
-        if (el) return el;
-        await delay(500);
-    }
-    return null;
+function simulateRightKey() {
+    const event = new KeyboardEvent('keydown', {
+        key: 'ArrowRight',
+        code: 'ArrowRight',
+        bubbles: true
+    });
+    document.dispatchEvent(event);
+}
+
+function simulateClickAtScreen(side) {
+    const x = side === 'right' ? window.innerWidth * 0.9 : window.innerWidth * 0.1;
+    const y = window.innerHeight / 2;
+    const el = document.elementFromPoint(x, y);
+    if (el) el.click();
 }
 
 // Update Message Listener to handle STORY_INIT
