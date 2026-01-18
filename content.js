@@ -139,13 +139,15 @@ async function unfollowViaFollowingList(username, isBatch = false) {
     log(`Unfollowing ${username} via Following list...`);
 
     // 1. Ensure we are on own profile
-    // We assume the user runs this from their own profile or we might need to navigate there first?
-    // Use the profile link in menu to check or just check URL
-    // Actually, safer to just click "Following" if visible, or navigate to own profile if not.
-
-    const profileLink = document.querySelector('a[href="/' + username + '/"]'); // Wait, username is target.
-    // We need own username.
-    // Let's assume we are on own profile for now as per instructions.
+    const editProfileBtn = document.querySelector('a[href="/accounts/edit/"]');
+    if (!editProfileBtn) {
+        log('Not on own profile. Navigating...');
+        const success = await navigateToProfile();
+        if (!success) {
+            log('Error: Could not navigate to profile. Aborting...');
+            return;
+        }
+    }
 
     // 2. Open Following Modal
     const links = Array.from(document.querySelectorAll('a'));
@@ -537,4 +539,29 @@ async function startBatchUnfollow() {
             log('No users to unfollow.');
         }
     });
+}
+
+async function navigateToProfile() {
+    log('Searching for Profile link in sidebar...');
+    let attempts = 0;
+    while (attempts < 5) {
+        const links = Array.from(document.querySelectorAll('a'));
+        const profileLink = links.find(a => {
+            if (a.innerText.trim() === 'Profile') return true;
+            const img = a.querySelector('img');
+            if (img && img.alt && img.alt.toLowerCase().includes('profile picture')) return true;
+            return false;
+        });
+
+        if (profileLink) {
+            log('Found Profile link. Clicking...');
+            profileLink.click();
+            await delay(3000); // Wait for SPA nav
+            return true;
+        }
+
+        attempts++;
+        await delay(1000);
+    }
+    return false;
 }
